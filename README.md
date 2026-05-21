@@ -23,6 +23,19 @@ This creates a Python virtualenv (if missing), installs backend deps, starts Fas
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+## MVP stack
+
+- Frontend: React + TypeScript + TailwindCSS
+- Backend: FastAPI + pandas + Plotly
+- LLM: Ollama (`qwen2.5:3b`) for intent parsing only
+
+## Architecture principle
+
+The LLM never executes code and never emits Plotly syntax. It only returns strict JSON chart instructions. The backend validates instructions and safely generates charts.
+
+## Run backend
+
+```bash
 pip install fastapi uvicorn pandas plotly pydantic requests python-multipart
 uvicorn backend.app:app --reload
 ```
@@ -72,3 +85,19 @@ Yes, this works in IntelliJ.
 ## Architecture principle
 
 The LLM never executes code and never emits Plotly syntax. It only returns strict JSON chart instructions. The backend validates instructions and safely generates charts.
+## API endpoints
+
+- `POST /upload-csv` uploads one or more CSV files and stores metadata in memory.
+- `POST /chat` parses natural-language intent and returns a Plotly figure JSON payload.
+- `GET /health` basic healthcheck.
+
+## Suggested frontend wiring
+
+The frontend scaffold under `frontend/` includes:
+
+- chat panel
+- dataset sidebar
+- prompt input
+- graph canvas
+
+and API helpers to call the backend endpoints.

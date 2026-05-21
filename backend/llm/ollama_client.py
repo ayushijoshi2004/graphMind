@@ -19,18 +19,3 @@ class OllamaClient:
         response.raise_for_status()
         payload = response.json()
         return payload.get("response", "")
-
-
-def mock_generate(prompt: str) -> str:
-    lower = prompt.lower()
-    chart_type = "line"
-    if "scatter" in lower:
-        chart_type = "scatter"
-    elif "bar" in lower:
-        chart_type = "bar"
-
-    return (
-        '{"action":"create_chart","chart_type":"'
-        + chart_type
-        + '","title":"Generated Chart","x_axis":"Date","series":[{"dataset":"demo.csv","column":"Value"}],"filters":[],"transformations":[]}'
-    )
