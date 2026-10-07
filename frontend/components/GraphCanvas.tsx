@@ -7,12 +7,13 @@
  */
 
 import React from "react";
-import Plot from "react-plotly.js";
+const Plot = React.lazy(() => import("react-plotly.js"));
 
 export function GraphCanvas({ figure }: { figure: any }) {
   return (
       <div className="h-full w-full bg-white rounded-xl border border-[#E5E5E5] p-6">
         {figure ? (
+            <React.Suspense fallback={<p>Loading chart renderer…</p>}>
             <Plot
                 data={figure.data}
                 layout={{
@@ -33,6 +34,7 @@ export function GraphCanvas({ figure }: { figure: any }) {
                 style={{ width: "100%", height: "100%" }}
                 useResizeHandler={true}
             />
+            </React.Suspense>
         ) : (
             <div className="h-full flex items-center justify-center text-center">
               <div className="space-y-3">

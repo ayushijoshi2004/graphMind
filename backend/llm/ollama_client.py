@@ -28,19 +28,19 @@ class OllamaClient:
     def _mock_generate(self, prompt: str) -> str:
         """Generate a mock chart instruction based on the prompt."""
         # Extract dataset metadata from the prompt
-        datasets_section = re.search(r'Datasets:\s*(\[.*?\])', prompt, re.DOTALL)
         datasets = []
-        if datasets_section:
+        marker = "Available datasets: "
+        if marker in prompt:
             try:
-                datasets = json.loads(datasets_section.group(1))
-            except json.JSONDecodeError:
+                datasets, _ = json.JSONDecoder().raw_decode(prompt.split(marker, 1)[1])
+            except (json.JSONDecodeError, TypeError):
                 pass
-        
-        # Extract user request
-        user_request_match = re.search(r'User request:\s*(.+)$', prompt, re.DOTALL)
-        user_request = user_request_match.group(1).strip() if user_request_match else prompt
+        if not datasets:
+            raise ValueError("No dataset metadata is available for chart generation.")
+
+        user_request = prompt.split("User request: ", 1)[-1].split("\n\nReturn only", 1)[0].strip()
         user_request_lower = user_request.lower()
-        
+
         # Determine chart type
         chart_type = "bar"  # Default to bar for comparisons
         if "line" in user_request_lower or "trend" in user_request_lower or "over time" in user_request_lower:
@@ -79,33 +79,33 @@ class OllamaClient:
 
         # Default fallback if we couldn't find columns
         if not x_column and available_columns:
-            x_column = available_columns[0]
+            x_column = next(iter(datasets[0].get("datetime_columns", [])), available_columns[0])
         if not y_column and len(available_columns) > 1:
-            y_column = available_columns[1]
+            y_column = next((col for col in datasets[0].get("numeric_columns", []) if col != x_column), available_columns[1])
         elif not y_column and available_columns:
             y_column = available_columns[0]
+
+        if x_column == y_column and datasets[0].get("datetime_columns"):
+            x_column = datasets[0]["datetime_columns"][0]
 
         # Look for filters (years, date ranges, etc.)
         filters = []
 
-        # Check for year filtering
-        year_match = re.search(r'\b(20\d{2})\b', user_request)
+        # Match the entire requested year, not just January 1.
+        year_match = re.search(r"\b(20\d{2})\b", user_request)
         if year_match:
-            year_str = year_match.group(1)
-            # Find a date/year column
-            date_col = None
-            for col in available_columns:
-                if any(term in col.lower() for term in ['date', 'year', 'time']):
-                    date_col = col
-                    break
-
+            date_col = next((col for col in available_columns if "date" in col.lower()), None)
+            year_col = next((col for col in available_columns if col.lower() == "year"), None)
             if date_col:
-                # Use a string match since dates are in YYYY-MM-DD format
-                filters.append({
-                    "column": date_col,
-                    "operator": "==",
-                    "value": f"{year_str}-01-01"  # Match the date format in the CSV
-                })
+                year = int(year_match.group(1))
+                filters.extend([
+                    {"column": date_col, "operator": ">=", "value": f"{year}-01-01"},
+                    {"column": date_col, "operator": "<", "value": f"{year + 1}-01-01"},
+                ])
+            elif year_col:
+                numeric = year_col in datasets[0].get("numeric_columns", [])
+                filters.append({"column": year_col, "operator": "==",
+                                "value": int(year_match.group(1)) if numeric else year_match.group(1)})
 
         # Generate a descriptive title
         title_parts = []

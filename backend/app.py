@@ -47,8 +47,13 @@ async def upload_csv(files: list[UploadFile] = File(...)) -> dict:
     for file in files:
         if not file.filename.lower().endswith(".csv"):
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.filename}")
-        content = await file.read()
-        dataframe = pd.read_csv(io.BytesIO(content))
+        content = await file.read(10 * 1024 * 1024 + 1)
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="CSV files must be at most 10 MB.")
+        try:
+            dataframe = pd.read_csv(io.BytesIO(content))
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError):
+            raise HTTPException(status_code=400, detail="Upload a non-empty, valid UTF-8 CSV file.") from None
         record = store.add_csv(file.filename, dataframe)
         uploaded.append(record.metadata)
 
@@ -83,7 +88,7 @@ def chat(payload: dict[str, str]) -> dict:
             print(f"[ERROR] Raw response was: {raw_response}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to parse LLM response: {str(e)}. Raw response: {raw_response[:200]}"
+                detail="Unable to interpret this chart request. Try specifying the dataset and columns."
             )
         
         # Step 4: Build the figure
@@ -94,7 +99,7 @@ def chat(payload: dict[str, str]) -> dict:
             print(f"[ERROR] Failed to build figure: {e}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to generate chart: {str(e)}"
+                detail="Unable to generate the requested chart. Check the columns and transformations."
             )
         
         # Step 5: Convert figure to JSON (with numpy handling)
@@ -119,7 +124,7 @@ def chat(payload: dict[str, str]) -> dict:
             print(f"[ERROR] Failed to serialize figure: {e}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to serialize chart: {str(e)}"
+                detail="Unable to return the generated chart."
             )
         
         # Step 6: Save state and return
@@ -140,4 +145,4 @@ def chat(payload: dict[str, str]) -> dict:
         print(f"[ERROR] Unexpected error in chat endpoint: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Unable to process this chart request.")

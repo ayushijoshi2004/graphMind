@@ -10,7 +10,7 @@ fi
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
-pip install -q fastapi uvicorn pandas plotly pydantic requests python-multipart
+pip install -q -r backend/requirements.txt
 
 echo "Starting backend on http://127.0.0.1:8000"
 uvicorn backend.app:app --reload &

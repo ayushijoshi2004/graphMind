@@ -23,7 +23,7 @@ class FilterSpec(BaseModel):
 class TransformationSpec(BaseModel):
     operation: Literal["rolling_mean", "pct_change", "cumulative_sum"]
     column: str
-    window: int | None = None
+    window: int | None = Field(default=None, gt=0)
 
 
 class ChartInstruction(BaseModel):
@@ -31,6 +31,6 @@ class ChartInstruction(BaseModel):
     chart_type: ChartType
     title: str
     x_axis: str
-    series: List[SeriesSpec]
+    series: List[SeriesSpec] = Field(..., min_length=1)
     filters: List[FilterSpec] = Field(default_factory=list)
     transformations: List[TransformationSpec] = Field(default_factory=list)

@@ -5,7 +5,7 @@ GraphMind is a local AI-powered data visualization workspace.
 ## What you need
 
 - Python 3.10+
-- Node.js 18+
+- Node.js 22.12+
 - (Optional) Ollama for real local LLM intent parsing
 
 If Ollama is not installed/running, GraphMind now falls back to a built-in **mock intent mode** so you can still run and test the full flow.
@@ -18,11 +18,6 @@ If Ollama is not installed/running, GraphMind now falls back to a built-in **moc
 
 This creates a Python virtualenv (if missing), installs backend deps, starts FastAPI, installs frontend deps (if missing), and starts Vite.
 
-## 1) Run backend
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
 ## MVP stack
 
 - Frontend: React + TypeScript + TailwindCSS
@@ -36,7 +31,9 @@ The LLM never executes code and never emits Plotly syntax. It only returns stric
 ## Run backend
 
 ```bash
-pip install fastapi uvicorn pandas plotly pydantic requests python-multipart
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 uvicorn backend.app:app --reload
 ```
 
@@ -101,3 +98,9 @@ The frontend scaffold under `frontend/` includes:
 - graph canvas
 
 and API helpers to call the backend endpoints.
+
+## Scope and verification
+
+This is a single-user local prototype: datasets and chat state are held in memory and reset on restart. Use public/sample CSV data when demonstrating it. Ollama is optional; mock mode uses dataset metadata and simple prompt rules rather than AI inference.
+
+Run backend regression checks with `python -m unittest discover -s backend/tests -v`. Build the frontend with `npm run build` from `frontend/`. Dependencies are installed locally and are not part of source control.
