@@ -1,106 +1,103 @@
 # GraphMind
 
-GraphMind is a local AI-powered data visualization workspace.
+**Turn CSV data and natural-language requests into interactive charts.** GraphMind is a local data-exploration workspace: upload datasets, ask for a visualization, then refine it through follow-up prompts.
 
-## What you need
+## What the app does
 
-- Python 3.10+
-- Node.js 22.12+
-- (Optional) Ollama for real local LLM intent parsing
+1. Upload one or more CSV files and inspect their column metadata in the dataset sidebar.
+2. Ask for a line, bar, or scatter chart, naming the dataset/columns when useful.
+3. View an interactive Plotly chart alongside the conversation.
+4. Apply supported filters and transformations, including rolling means, percentage changes and cumulative sums.
 
-If Ollama is not installed/running, GraphMind now falls back to a built-in **mock intent mode** so you can still run and test the full flow.
+For example, with a CSV containing `date` and `sales`, try “Show sales over time as a line chart.” Prompt interpretation depends on whether Ollama or the limited rule-based fallback is active.
 
-## Quick start (one command)
+## Tech stack
 
-```bash
+| Layer | Technologies |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite 7, Tailwind CSS 3 |
+| Visualization | Plotly.js and react-plotly.js in the browser; Plotly in Python |
+| Backend | Python, FastAPI, Uvicorn, pandas |
+| Validation | Pydantic 2 chart-instruction schemas |
+| Local AI | Ollama with `qwen2.5:3b` |
+| Tests | Python unittest regression tests |
+
+## How it works
+
+```text
+CSV uploads → pandas datasets + column metadata
+Prompt + metadata + previous chart → Ollama (or rule-based fallback)
+JSON instructions → Pydantic validation → Python chart generator → Plotly figure
+```
+
+The model interprets intent; it does not execute generated code or supply Plotly syntax. Chart construction and supported data transformations happen in Python. The fallback is a constrained local demo mode, not AI inference.
+
+## Run locally
+
+Requires Python 3.10+ and Node.js 22.12+. Ollama is optional.
+
+On macOS/Linux, from the repository root:
+
+```sh
 ./scripts_dev_up.sh
 ```
 
-This creates a Python virtualenv (if missing), installs backend deps, starts FastAPI, installs frontend deps (if missing), and starts Vite.
+The script creates `.venv`, installs Python dependencies, starts FastAPI, and starts the Vite frontend. For manual setup:
 
-## MVP stack
-
-- Frontend: React + TypeScript + TailwindCSS
-- Backend: FastAPI + pandas + Plotly
-- LLM: Ollama (`qwen2.5:3b`) for intent parsing only
-
-## Architecture principle
-
-The LLM never executes code and never emits Plotly syntax. It only returns strict JSON chart instructions. The backend validates instructions and safely generates charts.
-
-## Run backend
-
-```bash
-python -m venv .venv
+```sh
+# Terminal 1, repository root
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r backend/requirements.txt
+python -m pip install -r backend/requirements.txt
 uvicorn backend.app:app --reload
-```
 
-Backend runs on `http://127.0.0.1:8000`.
-
-Useful endpoints:
-
-- `GET /health`
-- `GET /llm-status` (`ollama` or `mock` mode)
-- `POST /upload-csv`
-- `POST /chat`
-
-## 2) Run frontend
-
-```bash
+# Terminal 2, repository root
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Frontend runs on `http://127.0.0.1:5173` and talks to backend at `http://localhost:8000`.
+Open `http://localhost:5173`; the frontend calls `http://localhost:8000`. On Windows, activate `.venv` with `.venv\Scripts\Activate.ps1` instead of the shell command above.
 
-## 3) Optional: enable real Ollama mode
+### Enable local AI
 
-Install Ollama, then:
+Install and start Ollama, then download the model:
 
-```bash
+```sh
 ollama serve
+# In another terminal:
 ollama pull qwen2.5:3b
 ```
 
-Once available, `/chat` will use Ollama automatically.
+Start/restart the backend after Ollama is ready. `GET /llm-status` reports `ollama` or `mock`. `OLLAMA_BASE_URL` can override the default `http://localhost:11434`. There is no cloud API key requirement for this local model.
 
-## IntelliJ setup
+## API
 
-Yes, this works in IntelliJ.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Liveness |
+| GET | `/llm-status` | Current intent-parser mode |
+| POST | `/upload-csv` | Multipart CSV uploads (`files`); 10 MB maximum per file |
+| POST | `/chat` | JSON `{ "prompt": "..." }`; returns instructions, chart and conversation state |
 
-- Open project root in IntelliJ.
-- Configure Python interpreter for backend.
-- Create Python run config:
-  - Module: `uvicorn`
-  - Args: `backend.app:app --reload`
-  - Working directory: project root
-- Open `frontend/` as Node project and run `npm run dev` in terminal (or npm run config).
+## Checks
 
-## Architecture principle
+```sh
+python -m unittest discover -s backend/tests -v
+cd frontend
+npm run build
+```
 
-The LLM never executes code and never emits Plotly syntax. It only returns strict JSON chart instructions. The backend validates instructions and safely generates charts.
-## API endpoints
+## Scope and next steps
 
-- `POST /upload-csv` uploads one or more CSV files and stores metadata in memory.
-- `POST /chat` parses natural-language intent and returns a Plotly figure JSON payload.
-- `GET /health` basic healthcheck.
+This is a single-user local prototype. Uploaded data, chart state and history live in process memory and reset on restart. There is no per-user isolation or persistence; keep it local and use sample data when demonstrating it.
 
-## Suggested frontend wiring
+The next engineering priorities are configurable frontend API URLs, per-session state, stronger validation of requested columns/types, broader API/real-model tests, and a small sample dataset with reproducible example prompts.
 
-The frontend scaffold under `frontend/` includes:
+## Source map
 
-- chat panel
-- dataset sidebar
-- prompt input
-- graph canvas
-
-and API helpers to call the backend endpoints.
-
-## Scope and verification
-
-This is a single-user local prototype: datasets and chat state are held in memory and reset on restart. Use public/sample CSV data when demonstrating it. Ollama is optional; mock mode uses dataset metadata and simple prompt rules rather than AI inference.
-
-Run backend regression checks with `python -m unittest discover -s backend/tests -v`. Build the frontend with `npm run build` from `frontend/`. Dependencies are installed locally and are not part of source control.
+- `backend/app.py`: upload/chat routes and process-local state.
+- `backend/llm/`: prompt construction, Ollama client and JSON parsing.
+- `backend/charts/`: instruction schemas, filters, transformations and chart generation.
+- `backend/data/`: dataset storage and metadata extraction.
+- `frontend/src/`: chat, dataset sidebar, chart canvas and API client.
